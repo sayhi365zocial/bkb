@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบแสดงตำแหน่งการใช้งาน</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            height: calc(100vh - 120px);
+        }
+
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-section h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        #dataInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: none;
+            margin-bottom: 15px;
+        }
+
+        #dataInput:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        #parseButton {
+            background: #4CAF50;
+            color: white;
+        }
+
+        #parseButton:hover {
+            background: #45a049;
+        }
+
+        #clearButton {
+            background: #f44336;
+            color: white;
+        }
+
+        #clearButton:hover {
+            background: #da190b;
+        }
+
+        .map-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stats {
+            padding: 15px 20px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stats-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats-value {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        #map {
+            flex: 1;
+            min-height: 400px;
+        }
+
+        .info-section {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .info-section h3 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .info-section ul {
+            list-style-position: inside;
+            line-height: 1.8;
+        }
+
+        .leaflet-popup-content {
+            font-family: 'Sarabun', sans-serif;
+        }
+
+        .popup-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .popup-detail {
+            color: #666;
+            font-size: 14px;
+            margin: 3px 0;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .input-section {
+                min-height: 300px;
+            }
+
+            .map-section {
+                min-height: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ ระบบแสดงตำแหน่งการใช้งาน</h1>
+
+        <div class="content">
+            <div class="input-section">
+                <h2>📋 ข้อมูลตำแหน่ง</h2>
+                <textarea
+                    id="dataInput"
+                    placeholder="วางข้อมูลที่นี่ (รูปแบบ: ชื่อ [TAB] รหัส [TAB] พิกัด [TAB] วันที่-เวลา)&#10;&#10;ตัวอย่าง:&#10;พิชชาพร มินสิน	EZYtrfpMZRmmnmQd	8.108287, 98.306597	11/11/2025 14:22:10"
+                ></textarea>
+
+                <div class="button-group">
+                    <button id="parseButton">🔍 แสดงบนแผนที่</button>
+                    <button id="clearButton">🗑️ ล้างข้อมูล</button>
+                </div>
+
+                <div class="info-section">
+                    <h3>📌 วิธีใช้งาน:</h3>
+                    <ul>
+                        <li>วางข้อมูลในช่องด้านบน</li>
+                        <li>กด "แสดงบนแผนที่"</li>
+                        <li>คลิกที่จุดบนแผนที่เพื่อดูรายละเอียด</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="map-section">
+                <div class="stats">
+                    <div class="stats-item">
+                        <span class="stats-label">📍 จำนวนตำแหน่ง:</span>
+                        <span class="stats-value" id="locationCount">0</span>
+                    </div>
+                    <div class="stats-item">
+                        <span class="stats-label">👥 จำนวนผู้ใช้:</span>
+                        <span class="stats-value" id="userCount">0</span>
+                    </div>
+                </div>
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on Phuket, Thailand
+        const map = L.map('map').setView([7.9, 98.35], 11);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Store markers
+        let markers = [];
+        let markerGroup = L.layerGroup().addTo(map);
+
+        // Parse and display data
+        function parseAndDisplayData() {
+            const input = document.getElementById('dataInput').value.trim();
+
+            if (!input) {
+                alert('กรุณาวางข้อมูลก่อนครับ');
+                return;
+            }
+
+            // Clear existing markers
+            markerGroup.clearLayers();
+            markers = [];
+
+            const lines = input.split('\n');
+            const locations = [];
+            const uniqueUsers = new Set();
+
+            lines.forEach((line, index) => {
+                if (!line.trim()) return;
+
+                // Split by tab
+                const parts = line.split('\t');
+
+                if (parts.length >= 3) {
+                    const name = parts[0].trim();
+                    const id = parts[1].trim();
+                    const coords = parts[2].trim();
+                    const datetime = parts[3] ? parts[3].trim() : 'ไม่ระบุ';
+
+                    // Parse coordinates
+                    const coordParts = coords.split(',');
+                    if (coordParts.length === 2) {
+                        const lat = parseFloat(coordParts[0].trim());
+                        const lng = parseFloat(coordParts[1].trim());
+
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            locations.push({
+                                name,
+                                id,
+                                lat,
+                                lng,
+                                datetime
+                            });
+                            uniqueUsers.add(name);
+                        }
+                    }
+                }
+            });
+
+            if (locations.length === 0) {
+                alert('ไม่พบข้อมูลตำแหน่งที่ถูกต้อง');
+                return;
+            }
+
+            // Create markers
+            locations.forEach((loc, index) => {
+                const marker = L.marker([loc.lat, loc.lng])
+                    .bindPopup(`
+                        <div>
+                            <div class="popup-name">${loc.name}</div>
+                            <div class="popup-detail">🆔 ${loc.id}</div>
+                            <div class="popup-detail">📍 ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}</div>
+                            <div class="popup-detail">🕐 ${loc.datetime}</div>
+                        </div>
+                    `);
+
+                markerGroup.addLayer(marker);
+                markers.push(marker);
+            });
+
+            // Fit map to markers
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+
+            // Update stats
+            document.getElementById('locationCount').textContent = locations.length;
+            document.getElementById('userCount').textContent = uniqueUsers.size;
+
+            console.log(`✅ แสดง ${locations.length} ตำแหน่ง จาก ${uniqueUsers.size} ผู้ใช้`);
+        }
+
+        function clearData() {
+            document.getElementById('dataInput').value = '';
+            markerGroup.clearLayers();
+            markers = [];
+            document.getElementById('locationCount').textContent = '0';
+            document.getElementById('userCount').textContent = '0';
+            map.setView([7.9, 98.35], 11);
+        }
+
+        // Event listeners
+        document.getElementById('parseButton').addEventListener('click', parseAndDisplayData);
+        document.getElementById('clearButton').addEventListener('click', clearData);
+
+        // Allow Enter key to parse (Ctrl+Enter)
+        document.getElementById('dataInput').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                parseAndDisplayData();
+            }
+        });
+
+        console.log('🗺️ ระบบพร้อมใช้งาน - วางข้อมูลและกด "แสดงบนแผนที่"');
+    </script>
+</body>
+</html>
