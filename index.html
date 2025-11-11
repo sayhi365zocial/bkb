@@ -203,7 +203,7 @@
                 <h2>📋 ข้อมูลตำแหน่ง</h2>
                 <textarea
                     id="dataInput"
-                    placeholder="วางข้อมูลที่นี่ (รูปแบบ: ชื่อ [TAB] รหัส [TAB] พิกัด [TAB] วันที่-เวลา)&#10;&#10;ตัวอย่าง:&#10;พิชชาพร มินสิน	EZYtrfpMZRmmnmQd	8.108287, 98.306597	11/11/2025 14:22:10"
+                    placeholder="วางข้อมูลที่นี่ (รองรับหลายรูปแบบ)&#10;&#10;แค่พิกัด:&#10;8.108287, 98.306597&#10;7.958515, 98.384452&#10;&#10;หรือมีชื่อ:&#10;พิชชาพร 8.108287, 98.306597&#10;จิรทีปต์ 7.958515, 98.384452"
                 ></textarea>
 
                 <div class="button-group">
@@ -272,51 +272,85 @@
             lines.forEach((line, index) => {
                 if (!line.trim()) return;
 
-                // Split by tab
-                const parts = line.split('\t');
+                let name = `จุดที่ ${index + 1}`;
+                let id = '';
+                let datetime = '';
+                let lat = null;
+                let lng = null;
 
-                if (parts.length >= 3) {
-                    const name = parts[0].trim();
-                    const id = parts[1].trim();
-                    const coords = parts[2].trim();
-                    const datetime = parts[3] ? parts[3].trim() : 'ไม่ระบุ';
+                // Format 1: Tab-separated (full format)
+                // ชื่อ[TAB]รหัส[TAB]พิกัด[TAB]วันที่
+                if (line.includes('\t')) {
+                    const parts = line.split('\t');
+                    if (parts.length >= 3) {
+                        name = parts[0].trim();
+                        id = parts[1].trim();
+                        const coords = parts[2].trim();
+                        datetime = parts[3] ? parts[3].trim() : '';
 
-                    // Parse coordinates
-                    const coordParts = coords.split(',');
-                    if (coordParts.length === 2) {
-                        const lat = parseFloat(coordParts[0].trim());
-                        const lng = parseFloat(coordParts[1].trim());
-
-                        if (!isNaN(lat) && !isNaN(lng)) {
-                            locations.push({
-                                name,
-                                id,
-                                lat,
-                                lng,
-                                datetime
-                            });
-                            uniqueUsers.add(name);
+                        const coordParts = coords.split(',');
+                        if (coordParts.length === 2) {
+                            lat = parseFloat(coordParts[0].trim());
+                            lng = parseFloat(coordParts[1].trim());
                         }
                     }
+                } else {
+                    // Format 2 & 3: Space or comma separated
+                    // Just coordinates: "8.108287, 98.306597"
+                    // With name: "ชื่อ 8.108287, 98.306597"
+
+                    // Try to extract coordinates (look for number patterns)
+                    const coordRegex = /(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/;
+                    const match = line.match(coordRegex);
+
+                    if (match) {
+                        lat = parseFloat(match[1]);
+                        lng = parseFloat(match[2]);
+
+                        // Extract name (everything before the coordinates)
+                        const beforeCoords = line.substring(0, match.index).trim();
+                        if (beforeCoords) {
+                            name = beforeCoords;
+                        }
+                    }
+                }
+
+                // Add location if coordinates are valid
+                if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+                    locations.push({
+                        name,
+                        id,
+                        lat,
+                        lng,
+                        datetime
+                    });
+                    uniqueUsers.add(name);
                 }
             });
 
             if (locations.length === 0) {
-                alert('ไม่พบข้อมูลตำแหน่งที่ถูกต้อง');
+                alert('ไม่พบข้อมูลตำแหน่งที่ถูกต้อง\n\nรองรับรูปแบบ:\n- แค่พิกัด: 8.108287, 98.306597\n- มีชื่อ: ชื่อ 8.108287, 98.306597\n- แบบเต็ม: ชื่อ[TAB]รหัส[TAB]8.108287, 98.306597[TAB]วันที่');
                 return;
             }
 
             // Create markers
             locations.forEach((loc, index) => {
+                let popupContent = `
+                    <div>
+                        <div class="popup-name">${loc.name}</div>
+                        <div class="popup-detail">📍 ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}</div>`;
+
+                if (loc.id) {
+                    popupContent += `<div class="popup-detail">🆔 ${loc.id}</div>`;
+                }
+                if (loc.datetime) {
+                    popupContent += `<div class="popup-detail">🕐 ${loc.datetime}</div>`;
+                }
+
+                popupContent += `</div>`;
+
                 const marker = L.marker([loc.lat, loc.lng])
-                    .bindPopup(`
-                        <div>
-                            <div class="popup-name">${loc.name}</div>
-                            <div class="popup-detail">🆔 ${loc.id}</div>
-                            <div class="popup-detail">📍 ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}</div>
-                            <div class="popup-detail">🕐 ${loc.datetime}</div>
-                        </div>
-                    `);
+                    .bindPopup(popupContent);
 
                 markerGroup.addLayer(marker);
                 markers.push(marker);
